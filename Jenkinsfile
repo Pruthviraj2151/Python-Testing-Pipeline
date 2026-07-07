@@ -1,78 +1,106 @@
+// ============================================================================
+// Jenkinsfile - Python Flask CI/CD Pipeline
+// ----------------------------------------------------------------------------
+// Compatible with : Jenkins LTS 2.540+, Docker, GitHub
+// Required plugins: Git, Pipeline, HTML Publisher, JUnit, Docker (docker CLI)
+// No credentials, no email-ext, no SonarQube, no Workspace Cleanup required.
+// ============================================================================
+
 pipeline {
     agent any
 
+    // ------------------------------------------------------------------
+    // Global environment variables (all self-contained, no credentials)
+    // ------------------------------------------------------------------
     environment {
-        APP_NAME        = 'python-testing-pipeline'
-        DOCKER_IMAGE    = "python-testing-pipeline:${BUILD_NUMBER}"
-        DOCKER_LATEST   = 'python-testing-pipeline:latest'
-        SONAR_PROJECT   = 'python-testing-pipeline'
-        VENV_DIR        = '.venv'
-        REPORTS_DIR     = 'reports'
-        CONTAINER_NAME  = 'pipeline-app'
-        APP_PORT        = '5000'
-        EMAIL_RECIPIENT = credentials('NOTIFICATION_EMAIL')
-        SONAR_TOKEN     = credentials('SONAR_TOKEN')
+        APP_NAME       = 'python-flask-app'
+        DOCKER_IMAGE   = "python-flask-app:${BUILD_NUMBER}"
+        DOCKER_LATEST  = 'python-flask-app:latest'
+        VENV_DIR       = '.venv'
+        REPORTS_DIR    = 'reports'
+        CONTAINER_NAME = 'python-flask-app-container'
+        APP_PORT       = '5000'
+        HOST_PORT      = '5000'
+        COVERAGE_MIN   = '80'
     }
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '20'))
         timeout(time: 30, unit: 'MINUTES')
         timestamps()
-        ansiColor('xterm')
         disableConcurrentBuilds()
-    }
-
-    triggers {
-        githubPush()
+        skipDefaultCheckout(false)
     }
 
     stages {
 
+        // ================================================================
+        // Stage 1: Checkout
+        // ================================================================
         stage('Checkout') {
             steps {
-                echo '=== Stage 1: Checkout Code ==='
+                echo "=== Stage 1: Checkout Source Code ==="
                 checkout scm
                 script {
                     env.GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                    env.GIT_AUTHOR      = sh(returnStdout: true, script: 'git log -1 --format=%an').trim()
-                    env.GIT_MESSAGE     = sh(returnStdout: true, script: 'git log -1 --format=%s').trim()
-                    env.GIT_BRANCH_NAME = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
-                    env.BUILD_TIMESTAMP = sh(returnStdout: true, script: 'date "+%Y-%m-%d %H:%M:%S"').trim()
+                    env.GIT_AUTHOR       = sh(returnStdout: true, script: 'git log -1 --format=%an').trim()
+                    env.GIT_BRANCH_NAME  = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
+                    env.BUILD_TIMESTAMP  = sh(returnStdout: true, script: 'date "+%Y-%m-%d %H:%M:%S"').trim()
                 }
-                echo "Branch: ${GIT_BRANCH_NAME} | Commit: ${GIT_COMMIT_SHORT} | Author: ${GIT_AUTHOR}"
+                echo "Branch: ${env.GIT_BRANCH_NAME} | Commit: ${env.GIT_COMMIT_SHORT} | Author: ${env.GIT_AUTHOR}"
             }
         }
 
-        stage('Setup Python Environment') {
+        // ================================================================
+        // Stage 2: Setup Python Virtual Environment
+        // ================================================================
+        stage('Setup Python Virtual Environment') {
             steps {
-                echo '=== Stage 2: Setup Python Virtual Environment ==='
+                echo "=== Stage 2: Setting up Python virtual environment ==="
                 sh '''
-                    python3 -m venv ${VENV_DIR}
-                    . ${VENV_DIR}/bin/activate
+                    set -e
+                    python3 -m venv "${VENV_DIR}"
+                    . "${VENV_DIR}/bin/activate"
                     pip install --upgrade pip --quiet
                 '''
             }
         }
 
+        // ================================================================
+        // Stage 3: Install Dependencies
+        // ================================================================
         stage('Install Dependencies') {
             steps {
-                echo '=== Stage 3: Install Dependencies ==='
+                echo "=== Stage 3: Installing project dependencies ==="
                 sh '''
-                    . ${VENV_DIR}/bin/activate
-                    pip install -r requirements.txt --quiet
+                    set -e
+                    . "${VENV_DIR}/bin/activate"
+                    if [ -f requirements.txt ]; then
+                        pip install -r requirements.txt --quiet
+                    else
+                        echo "ERROR: requirements.txt not found"
+                        exit 1
+                    fi
                     pip list
                 '''
             }
         }
 
-        stage('Lint') {
+        // ================================================================
+        // Stage 4: Flake8 Lint
+        // ================================================================
+        stage('Flake8 Lint') {
             steps {
-                echo '=== Stage 4: Run Flake8 Linting ==='
+                echo "=== Stage 4: Running Flake8 lint checks ==="
                 sh '''
-                    . ${VENV_DIR}/bin/activate
+                    set -e
+                    mkdir -p "${REPORTS_DIR}"
+                    . "${VENV_DIR}/bin/activate"
+                    pip install flake8 --quiet
                     flake8 app/ --max-line-length=120 --format=default \
-                        --output-file=${REPORTS_DIR}/flake8-report.txt || true
-                    cat ${REPORTS_DIR}/flake8-report.txt
+                        --output-file="${REPORTS_DIR}/flake8-report.txt" || true
+                    echo "----- Flake8 Report -----"
+                    cat "${REPORTS_DIR}/flake8-report.txt" || echo "No lint issues found"
                 '''
             }
             post {
@@ -82,160 +110,184 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
+        // ================================================================
+        // Stage 5: Run Pytest
+        // ================================================================
+        stage('Run Pytest') {
             steps {
-                echo '=== Stage 5: Run Pytest ==='
+                echo "=== Stage 5: Running Pytest test suite ==="
                 sh '''
-                    . ${VENV_DIR}/bin/activate
-                    mkdir -p ${REPORTS_DIR}/{html,coverage,junit}
+                    set -e
+                    mkdir -p "${REPORTS_DIR}/html" "${REPORTS_DIR}/coverage" "${REPORTS_DIR}/junit"
+                    . "${VENV_DIR}/bin/activate"
+                    pip install pytest pytest-cov pytest-html --quiet
                     python -m pytest tests/ \
                         --tb=short \
                         --cov=app \
                         --cov-report=term-missing \
-                        --cov-report=html:${REPORTS_DIR}/coverage \
-                        --cov-report=xml:${REPORTS_DIR}/coverage/coverage.xml \
-                        --html=${REPORTS_DIR}/html/report.html \
+                        --cov-report=html:"${REPORTS_DIR}/coverage" \
+                        --cov-report=xml:"${REPORTS_DIR}/coverage/coverage.xml" \
+                        --html="${REPORTS_DIR}/html/report.html" \
                         --self-contained-html \
-                        --junitxml=${REPORTS_DIR}/junit/junit.xml \
+                        --junitxml="${REPORTS_DIR}/junit/junit.xml" \
                         -v
                 '''
             }
-            post {
-                always {
-                    junit 'reports/junit/junit.xml'
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'reports/html',
-                        reportFiles: 'report.html',
-                        reportName: 'Pytest HTML Report'
-                    ])
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'reports/coverage',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
-                }
-            }
         }
 
-        stage('Coverage Gate') {
+        // ================================================================
+        // Stage 6: Generate Coverage Report (threshold gate)
+        // ================================================================
+        stage('Generate Coverage Report') {
             steps {
-                echo '=== Stage 6: Verify Coverage Threshold ==='
+                echo "=== Stage 6: Verifying coverage threshold (>= ${COVERAGE_MIN}%) ==="
                 sh '''
-                    . ${VENV_DIR}/bin/activate
-                    coverage report --fail-under=80 || {
-                        echo "COVERAGE GATE FAILED: Coverage below 80%"
-                        exit 1
-                    }
+                    set -e
+                    . "${VENV_DIR}/bin/activate"
+                    coverage report --fail-under="${COVERAGE_MIN}"
                 '''
             }
         }
 
-        stage('SonarQube Analysis') {
-            when {
-                expression { return fileExists('sonar-project.properties') }
-            }
+        // ================================================================
+        // Stage 7: Publish JUnit Report
+        // ================================================================
+        stage('Publish JUnit Report') {
             steps {
-                echo '=== Stage 7: SonarQube Analysis ==='
-                withSonarQubeEnv('SonarQube') {
+                echo "=== Stage 7: Publishing JUnit test results ==="
+                junit testResults: 'reports/junit/junit.xml', allowEmptyResults: false
+            }
+        }
+
+        // ================================================================
+        // Stage 8: Publish HTML Report
+        // ================================================================
+        stage('Publish HTML Report') {
+            steps {
+                echo "=== Stage 8: Publishing HTML reports ==="
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports/html',
+                    reportFiles: 'report.html',
+                    reportName: 'Pytest HTML Report'
+                ])
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports/coverage',
+                    reportFiles: 'index.html',
+                    reportName: 'Coverage Report'
+                ])
+            }
+        }
+
+        // ================================================================
+        // Stage 9: Build Docker Image
+        // ================================================================
+        stage('Build Docker Image') {
+            steps {
+                echo "=== Stage 9: Building Docker image ==="
+                sh '''
+                    set -e
+                    docker build \
+                        --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
+                        --build-arg GIT_COMMIT="${GIT_COMMIT_SHORT}" \
+                        -t "${DOCKER_IMAGE}" \
+                        -t "${DOCKER_LATEST}" \
+                        .
+                    docker images | grep "${APP_NAME}" || true
+                '''
+            }
+        }
+
+        // ================================================================
+        // Stage 10: Deploy Docker Container (with retry)
+        // ================================================================
+        stage('Deploy Docker Container') {
+            steps {
+                echo "=== Stage 10: Deploying Docker container ==="
+                retry(3) {
                     sh '''
-                        sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT} \
-                            -Dsonar.python.coverage.reportPaths=${REPORTS_DIR}/coverage/coverage.xml \
-                            -Dsonar.python.xunit.reportPath=${REPORTS_DIR}/junit/junit.xml \
-                            -Dsonar.login=${SONAR_TOKEN}
+                        set -e
+                        echo "Stopping any existing container..."
+                        docker stop "${CONTAINER_NAME}" 2>/dev/null || true
+                        docker rm   "${CONTAINER_NAME}" 2>/dev/null || true
+
+                        echo "Starting new container..."
+                        docker run -d \
+                            --name "${CONTAINER_NAME}" \
+                            -p "${HOST_PORT}:${APP_PORT}" \
+                            -e BUILD_NUMBER="${BUILD_NUMBER}" \
+                            -e APP_ENV=production \
+                            --restart unless-stopped \
+                            "${DOCKER_IMAGE}"
+
+                        sleep 3
+                        STATUS=$(docker inspect -f '{{.State.Running}}' "${CONTAINER_NAME}" 2>/dev/null || echo "false")
+                        if [ "$STATUS" != "true" ]; then
+                            echo "ERROR: Container failed to start"
+                            docker logs "${CONTAINER_NAME}" || true
+                            exit 1
+                        fi
+                        echo "Container is running: $(docker ps --filter name=${CONTAINER_NAME} --format '{{.Status}}')"
                     '''
                 }
             }
         }
 
-        stage('Quality Gate') {
-            when {
-                expression { return fileExists('sonar-project.properties') }
-            }
-            steps {
-                echo '=== Stage 8: Verify SonarQube Quality Gate ==='
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                echo '=== Stage 9: Build Docker Image ==='
-                sh '''
-                    docker build \
-                        --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
-                        --build-arg GIT_COMMIT=${GIT_COMMIT_SHORT} \
-                        -t ${DOCKER_IMAGE} \
-                        -t ${DOCKER_LATEST} \
-                        .
-                    docker images | grep python-testing-pipeline
-                '''
-            }
-        }
-
-        stage('Deploy Container') {
-            steps {
-                echo '=== Stage 10: Stop Old Container and Run New One ==='
-                sh '''
-                    docker stop ${CONTAINER_NAME} 2>/dev/null || true
-                    docker rm   ${CONTAINER_NAME} 2>/dev/null || true
-                    docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        -p ${APP_PORT}:5000 \
-                        -e BUILD_NUMBER=${BUILD_NUMBER} \
-                        -e APP_ENV=production \
-                        --restart unless-stopped \
-                        ${DOCKER_IMAGE}
-                    echo "Container started: $(docker ps --filter name=${CONTAINER_NAME} --format '{{.Status}}')"
-                '''
-            }
-        }
-
+        // ================================================================
+        // Stage 11: Health Check (/health endpoint)
+        // ================================================================
         stage('Health Check') {
             steps {
-                echo '=== Stage 11: Application Health Check ==='
+                echo "=== Stage 11: Running application health check ==="
                 sh '''
-                    sleep 5
-                    for i in $(seq 1 10); do
-                        STATUS=$(curl -sf http://localhost:${APP_PORT}/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('status','unknown'))" 2>/dev/null || echo "unreachable")
-                        if [ "$STATUS" = "healthy" ]; then
-                            echo "Health check passed on attempt $i"
-                            exit 0
+                    set -e
+                    ATTEMPTS=10
+                    SLEEP_SECONDS=3
+                    HEALTH_URL="http://localhost:${HOST_PORT}/health"
+
+                    for i in $(seq 1 $ATTEMPTS); do
+                        HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
+                        if [ "$HTTP_CODE" = "200" ]; then
+                            STATUS=$(python3 -c "import json; print(json.load(open('/tmp/health_response.json')).get('status', 'unknown'))" 2>/dev/null || echo "unknown")
+                            if [ "$STATUS" = "healthy" ] || [ "$STATUS" = "ok" ]; then
+                                echo "Health check passed on attempt $i (status=$STATUS)"
+                                exit 0
+                            fi
                         fi
-                        echo "Attempt $i: status=$STATUS, retrying..."
-                        sleep 3
+                        echo "Attempt $i/$ATTEMPTS: HTTP=$HTTP_CODE, retrying in ${SLEEP_SECONDS}s..."
+                        sleep $SLEEP_SECONDS
                     done
-                    echo "Health check failed after 10 attempts"
-                    docker logs ${CONTAINER_NAME}
+
+                    echo "ERROR: Health check failed after $ATTEMPTS attempts"
+                    docker logs "${CONTAINER_NAME}" || true
                     exit 1
                 '''
             }
         }
 
+        // ================================================================
+        // Stage 12: Archive Artifacts
+        // ================================================================
         stage('Archive Artifacts') {
             steps {
-                echo '=== Stage 12: Archive Build Artifacts ==='
+                echo "=== Stage 12: Archiving build artifacts ==="
                 sh '''
+                    set -e
+                    mkdir -p "${REPORTS_DIR}/build-history"
                     BUILD_REPORT="${REPORTS_DIR}/build-history/build-${BUILD_NUMBER}.json"
-                    mkdir -p ${REPORTS_DIR}/build-history
-                    cat > ${BUILD_REPORT} << EOF
+                    cat > "$BUILD_REPORT" << EOF
 {
-  "build":     ${BUILD_NUMBER},
+  "build":     "${BUILD_NUMBER}",
   "status":    "SUCCESS",
   "timestamp": "${BUILD_TIMESTAMP}",
   "commit":    "${GIT_COMMIT_SHORT}",
   "author":    "${GIT_AUTHOR}",
-  "message":   "${GIT_MESSAGE}",
-  "branch":    "${GIT_BRANCH_NAME}",
-  "duration":  "${currentBuild.durationString}"
+  "branch":    "${GIT_BRANCH_NAME}"
 }
 EOF
                     echo "Build report saved to $BUILD_REPORT"
@@ -243,100 +295,41 @@ EOF
                 archiveArtifacts artifacts: 'reports/**/*', allowEmptyArchive: true, fingerprint: true
             }
         }
-
-        stage('Update Dashboard') {
-            steps {
-                echo '=== Stage 13: Update Monitoring Dashboard ==='
-                sh '''
-                    DASHBOARD_DATA="dashboard/build-data.json"
-                    COVERAGE=$(python3 -c "
-import xml.etree.ElementTree as ET
-try:
-    root = ET.parse('${REPORTS_DIR}/coverage/coverage.xml').getroot()
-    print(round(float(root.get('line-rate', 0)) * 100, 1))
-except:
-    print('N/A')
-")
-                    cat > ${DASHBOARD_DATA} << EOF
-{
-  "buildNumber":     "${BUILD_NUMBER}",
-  "buildStatus":     "SUCCESS",
-  "branch":          "${GIT_BRANCH_NAME}",
-  "commit":          "${GIT_COMMIT_SHORT}",
-  "author":          "${GIT_AUTHOR}",
-  "message":         "${GIT_MESSAGE}",
-  "timestamp":       "${BUILD_TIMESTAMP}",
-  "coverage":        "${COVERAGE}",
-  "dockerStatus":    "running",
-  "healthStatus":    "healthy",
-  "appPort":         "${APP_PORT}"
-}
-EOF
-                    echo "Dashboard data updated"
-                '''
-            }
-        }
     }
 
+    // ------------------------------------------------------------------
+    // Post-build actions (no email-ext, no cleanWs)
+    // ------------------------------------------------------------------
     post {
         success {
-            echo '=== Pipeline Completed Successfully ==='
-            emailext(
-                to: "${EMAIL_RECIPIENT}",
-                subject: "✅ BUILD #${BUILD_NUMBER} SUCCESS — ${APP_NAME} [${GIT_BRANCH_NAME}]",
-                body: """
-<html><body style="font-family:Arial,sans-serif;">
-<h2 style="color:#22c55e;">✅ Pipeline Succeeded</h2>
-<table cellpadding="8" border="1" style="border-collapse:collapse;">
-  <tr><td><b>Project</b></td><td>${APP_NAME}</td></tr>
-  <tr><td><b>Build Number</b></td><td>#${BUILD_NUMBER}</td></tr>
-  <tr><td><b>Branch</b></td><td>${GIT_BRANCH_NAME}</td></tr>
-  <tr><td><b>Commit</b></td><td>${GIT_COMMIT_SHORT}</td></tr>
-  <tr><td><b>Author</b></td><td>${GIT_AUTHOR}</td></tr>
-  <tr><td><b>Message</b></td><td>${GIT_MESSAGE}</td></tr>
-  <tr><td><b>Duration</b></td><td>${currentBuild.durationString}</td></tr>
-  <tr><td><b>Timestamp</b></td><td>${BUILD_TIMESTAMP}</td></tr>
-  <tr><td><b>Docker</b></td><td>Running on port ${APP_PORT}</td></tr>
-</table>
-<p><a href="${BUILD_URL}">View Build in Jenkins</a></p>
-</body></html>
-                """,
-                mimeType: 'text/html'
-            )
+            echo "============================================================"
+            echo " BUILD #${env.BUILD_NUMBER} SUCCESS"
+            echo " App:      ${env.APP_NAME}"
+            echo " Branch:   ${env.GIT_BRANCH_NAME}"
+            echo " Commit:   ${env.GIT_COMMIT_SHORT}"
+            echo " Author:   ${env.GIT_AUTHOR}"
+            echo " Duration: ${currentBuild.durationString}"
+            echo " Container running on port ${env.HOST_PORT}"
+            echo "============================================================"
         }
 
         failure {
-            echo '=== Pipeline FAILED ==='
-            emailext(
-                to: "${EMAIL_RECIPIENT}",
-                subject: "❌ BUILD #${BUILD_NUMBER} FAILED — ${APP_NAME} [${GIT_BRANCH_NAME}]",
-                body: """
-<html><body style="font-family:Arial,sans-serif;">
-<h2 style="color:#ef4444;">❌ Pipeline Failed</h2>
-<table cellpadding="8" border="1" style="border-collapse:collapse;">
-  <tr><td><b>Project</b></td><td>${APP_NAME}</td></tr>
-  <tr><td><b>Build Number</b></td><td>#${BUILD_NUMBER}</td></tr>
-  <tr><td><b>Branch</b></td><td>${GIT_BRANCH_NAME}</td></tr>
-  <tr><td><b>Commit</b></td><td>${GIT_COMMIT_SHORT}</td></tr>
-  <tr><td><b>Author</b></td><td>${GIT_AUTHOR}</td></tr>
-  <tr><td><b>Failed Stage</b></td><td>${currentBuild.result}</td></tr>
-  <tr><td><b>Duration</b></td><td>${currentBuild.durationString}</td></tr>
-</table>
-<p><a href="${BUILD_URL}console">View Console Log</a></p>
-</body></html>
-                """,
-                mimeType: 'text/html'
-            )
+            echo "============================================================"
+            echo " BUILD #${env.BUILD_NUMBER} FAILED"
+            echo " Branch: ${env.GIT_BRANCH_NAME}"
+            echo " Commit: ${env.GIT_COMMIT_SHORT}"
+            echo " Check console output for details: ${env.BUILD_URL}console"
+            echo "============================================================"
+            sh '''
+                echo "Attempting to capture container logs for diagnostics..."
+                docker logs "${CONTAINER_NAME}" 2>/dev/null || echo "No container logs available"
+            '''
         }
 
         always {
-            cleanWs(
-                cleanWhenNotBuilt: false,
-                deleteDirs: true,
-                disableDeferredWipeout: true,
-                notFailBuild: true,
-                patterns: [[pattern: '.venv/**', type: 'INCLUDE']]
-            )
+            echo "=== Pipeline finished: ${currentBuild.currentResult} ==="
+            // Workspace files are left in place intentionally (no cleanWs plugin used).
+            // Jenkins will manage disk usage via buildDiscarder (logRotator) above.
         }
     }
 }
