@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CI/CD Pipeline Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-icon">⬡</span>
+    <span class="brand-name">Pipeline Monitor</span>
+  </div>
+  <nav class="topbar-meta">
+    <span class="meta-item" id="clock">--:--:--</span>
+    <span class="pulse-dot" id="live-dot"></span>
+    <span class="meta-item">LIVE</span>
+  </nav>
+</header>
+
+<main class="layout">
+
+  <!-- Status Strip -->
+  <section class="status-strip" id="status-strip">
+    <div class="status-card" id="card-build">
+      <div class="status-label">Build</div>
+      <div class="status-value" id="val-build">#--</div>
+    </div>
+    <div class="status-card" id="card-status">
+      <div class="status-label">Pipeline</div>
+      <div class="status-value" id="val-status">—</div>
+    </div>
+    <div class="status-card" id="card-coverage">
+      <div class="status-label">Coverage</div>
+      <div class="status-value" id="val-coverage">--%</div>
+    </div>
+    <div class="status-card" id="card-docker">
+      <div class="status-label">Docker</div>
+      <div class="status-value" id="val-docker">—</div>
+    </div>
+    <div class="status-card" id="card-health">
+      <div class="status-label">Health</div>
+      <div class="status-value" id="val-health">—</div>
+    </div>
+  </section>
+
+  <!-- Main Grid -->
+  <div class="grid">
+
+    <!-- Left Column -->
+    <div class="col-left">
+
+      <!-- Pipeline Stages -->
+      <section class="panel">
+        <h2 class="panel-title">Pipeline Stages</h2>
+        <ol class="stages-list" id="stages-list">
+          <li class="stage" data-stage="checkout">Checkout Code</li>
+          <li class="stage" data-stage="setup">Setup Python Environment</li>
+          <li class="stage" data-stage="install">Install Dependencies</li>
+          <li class="stage" data-stage="lint">Flake8 Linting</li>
+          <li class="stage" data-stage="test">Run Tests</li>
+          <li class="stage" data-stage="coverage">Coverage Gate</li>
+          <li class="stage" data-stage="sonar">SonarQube Analysis</li>
+          <li class="stage" data-stage="quality">Quality Gate</li>
+          <li class="stage" data-stage="docker-build">Build Docker Image</li>
+          <li class="stage" data-stage="deploy">Deploy Container</li>
+          <li class="stage" data-stage="healthcheck">Health Check</li>
+          <li class="stage" data-stage="archive">Archive Artifacts</li>
+          <li class="stage" data-stage="dashboard">Update Dashboard</li>
+        </ol>
+      </section>
+
+      <!-- Commit Info -->
+      <section class="panel">
+        <h2 class="panel-title">Latest Commit</h2>
+        <dl class="info-grid">
+          <dt>Branch</dt>   <dd id="info-branch">—</dd>
+          <dt>Commit</dt>   <dd id="info-commit" class="mono">—</dd>
+          <dt>Author</dt>   <dd id="info-author">—</dd>
+          <dt>Message</dt>  <dd id="info-message">—</dd>
+          <dt>Time</dt>     <dd id="info-time">—</dd>
+        </dl>
+      </section>
+
+    </div>
+
+    <!-- Center Column -->
+    <div class="col-center">
+
+      <!-- Test Results -->
+      <section class="panel">
+        <h2 class="panel-title">Test Results</h2>
+        <div class="test-summary">
+          <div class="test-stat passed">
+            <span class="ts-number" id="ts-passed">—</span>
+            <span class="ts-label">Passed</span>
+          </div>
+          <div class="test-stat failed">
+            <span class="ts-number" id="ts-failed">—</span>
+            <span class="ts-label">Failed</span>
+          </div>
+          <div class="test-stat skipped">
+            <span class="ts-number" id="ts-skipped">—</span>
+            <span class="ts-label">Skipped</span>
+          </div>
+        </div>
+        <canvas id="test-chart" height="160"></canvas>
+      </section>
+
+      <!-- Coverage -->
+      <section class="panel">
+        <h2 class="panel-title">Coverage</h2>
+        <div class="coverage-container">
+          <canvas id="coverage-chart" width="200" height="200"></canvas>
+          <div class="coverage-center" id="coverage-pct">--%</div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-right">
+
+      <!-- Build History -->
+      <section class="panel panel-tall">
+        <h2 class="panel-title">Build History</h2>
+        <div class="build-list" id="build-list">
+          <p class="empty-state">Loading build history…</p>
+        </div>
+      </section>
+
+      <!-- System Status -->
+      <section class="panel">
+        <h2 class="panel-title">System Status</h2>
+        <ul class="sys-list">
+          <li class="sys-item"><span class="sys-dot" id="dot-app"></span><span>Application</span><span class="sys-value" id="sys-app">—</span></li>
+          <li class="sys-item"><span class="sys-dot" id="dot-docker"></span><span>Docker</span><span class="sys-value" id="sys-docker">—</span></li>
+          <li class="sys-item"><span class="sys-dot" id="dot-sonar"></span><span>SonarQube</span><span class="sys-value" id="sys-sonar">—</span></li>
+          <li class="sys-item"><span class="sys-dot" id="dot-jenkins"></span><span>Jenkins</span><span class="sys-value" id="sys-jenkins">—</span></li>
+        </ul>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Reports Bar -->
+  <section class="reports-bar">
+    <h2 class="panel-title">Reports &amp; Artifacts</h2>
+    <div class="report-links">
+      <a class="report-btn" href="../reports/html/report.html" target="_blank">📊 Pytest HTML</a>
+      <a class="report-btn" href="../reports/coverage/index.html" target="_blank">🔍 Coverage</a>
+      <a class="report-btn" href="../reports/junit/junit.xml" target="_blank">📄 JUnit XML</a>
+      <a class="report-btn" href="http://localhost:9000" target="_blank">🔬 SonarQube</a>
+      <a class="report-btn" href="http://localhost:8080" target="_blank">⚙️ Jenkins</a>
+      <a class="report-btn" href="http://localhost:5000/health" target="_blank">💓 Health API</a>
+    </div>
+  </section>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>

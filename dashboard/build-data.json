@@ -1,0 +1,13 @@
+{
+  "buildNumber": "1",
+  "buildStatus": "SUCCESS",
+  "branch": "main",
+  "commit": "abc1234",
+  "author": "DevOps Engineer",
+  "message": "Initial project setup",
+  "timestamp": "2024-01-01 10:00:00",
+  "coverage": "96.4",
+  "dockerStatus": "running",
+  "healthStatus": "healthy",
+  "appPort": "5000"
+}

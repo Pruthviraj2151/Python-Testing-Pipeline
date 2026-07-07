@@ -1,0 +1,84 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        BUILD_NUMBER: ${BUILD_NUMBER:-local}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    image: python-testing-pipeline:latest
+    container_name: pipeline-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - APP_ENV=production
+      - PORT=5000
+      - BUILD_NUMBER=${BUILD_NUMBER:-local}
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - pipeline-net
+
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://sonar-db:5432/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    depends_on:
+      - sonar-db
+    networks:
+      - pipeline-net
+
+  sonar-db:
+    image: postgres:15
+    container_name: sonar-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - sonar_postgres:/var/lib/postgresql/data
+    networks:
+      - pipeline-net
+
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    restart: unless-stopped
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - pipeline-net
+
+volumes:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:
+  sonar_postgres:
+  jenkins_home:
+
+networks:
+  pipeline-net:
+    driver: bridge
