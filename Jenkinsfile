@@ -248,7 +248,7 @@ pipeline {
                     set -e
                     ATTEMPTS=10
                     SLEEP_SECONDS=3
-                    HEALTH_URL="http://localhost:${HOST_PORT}/health"
+                    HEALTH_URL="http://python-flask-app-container:5000/health"
 
                     for i in $(seq 1 $ATTEMPTS); do
                         HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
