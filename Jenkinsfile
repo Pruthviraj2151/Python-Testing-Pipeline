@@ -219,6 +219,7 @@ pipeline {
                         echo "Starting new container..."
                         docker run -d \
                             --name "${CONTAINER_NAME}" \
+                            --network python-testing-pipeline_pipeline-net \
                             -p "${HOST_PORT}:${APP_PORT}" \
                             -e BUILD_NUMBER="${BUILD_NUMBER}" \
                             -e APP_ENV=production \
