@@ -239,37 +239,61 @@ pipeline {
             }
         }
 
-        // ================================================================
-        // Stage 11: Health Check (/health endpoint)
-        // ================================================================
-        stage('Health Check') {
-            steps {
-                echo "=== Stage 11: Running application health check ==="
-                sh '''
-                    set -e
-                    ATTEMPTS=10
-                    SLEEP_SECONDS=3
-                    HEALTH_URL="http://python-flask-app-container:5000/health"
+       // ================================================================
+// Stage 11: Health Check (/health endpoint)
+// ================================================================
+stage('Health Check') {
+    steps {
+        echo "=== Stage 11: Running application health check ==="
+        sh '''
+            set -e
 
-                    for i in $(seq 1 $ATTEMPTS); do
-                        HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
-                        if [ "$HTTP_CODE" = "200" ]; then
-                            STATUS=$(python3 -c "import json; print(json.load(open('/tmp/health_response.json')).get('status', 'unknown'))" 2>/dev/null || echo "unknown")
-                            if [ "$STATUS" = "healthy" ] || [ "$STATUS" = "ok" ]; then
-                                echo "Health check passed on attempt $i (status=$STATUS)"
-                                exit 0
-                            fi
-                        fi
-                        echo "Attempt $i/$ATTEMPTS: HTTP=$HTTP_CODE, retrying in ${SLEEP_SECONDS}s..."
-                        sleep $SLEEP_SECONDS
-                    done
+            ATTEMPTS=15
+            SLEEP_SECONDS=3
+            HEALTH_URL="http://python-flask-app-container:5000/health"
 
-                    echo "ERROR: Health check failed after $ATTEMPTS attempts"
-                    docker logs "${CONTAINER_NAME}" || true
-                    exit 1
-                '''
-            }
-        }
+            for i in $(seq 1 $ATTEMPTS); do
+
+                HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
+                if [ "$HTTP_CODE" = "200" ]; then
+
+                    STATUS=$(python3 - <<EOF
+import json
+try:
+    with open("/tmp/health_response.json") as f:
+        data=json.load(f)
+
+    if "data" in data:
+        print(data["data"].get("status","unknown"))
+    else:
+        print(data.get("status","unknown"))
+except Exception:
+    print("unknown")
+EOF
+)
+
+                    echo "Application Status = $STATUS"
+
+                    if [ "$STATUS" = "healthy" ] || [ "$STATUS" = "ok" ]; then
+                        echo "Health Check Passed"
+                        exit 0
+                    fi
+                fi
+
+                echo "Attempt $i/$ATTEMPTS failed..."
+                sleep $SLEEP_SECONDS
+
+            done
+
+            echo "Health Check Failed"
+
+            docker logs "${CONTAINER_NAME}" || true
+
+            exit 1
+        '''
+    }
+}
 
         // ================================================================
         // Stage 12: Archive Artifacts
