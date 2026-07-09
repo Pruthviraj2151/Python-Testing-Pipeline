@@ -294,6 +294,37 @@ EOF
         '''
     }
 }
+stage('Update Dashboard') {
+    steps {
+        sh '''
+        mkdir -p dashboard
+
+        COVERAGE=$(python3 - <<EOF
+import xml.etree.ElementTree as ET
+tree = ET.parse("reports/coverage/coverage.xml")
+root = tree.getroot()
+print(round(float(root.attrib["line-rate"])*100,2))
+EOF
+)
+
+cat > dashboard/build-data.json <<EOF
+{
+  "buildNumber":"${BUILD_NUMBER}",
+  "buildStatus":"SUCCESS",
+  "branch":"${GIT_BRANCH_NAME}",
+  "commit":"${GIT_COMMIT_SHORT}",
+  "author":"${GIT_AUTHOR}",
+  "message":"${currentBuild.description ?: 'Pipeline Build'}",
+  "timestamp":"${BUILD_TIMESTAMP}",
+  "coverage":"${COVERAGE}",
+  "dockerStatus":"running",
+  "healthStatus":"healthy",
+  "appPort":"5000"
+}
+EOF
+        '''
+    }
+}
 
         // ================================================================
         // Stage 12: Archive Artifacts
