@@ -314,7 +314,7 @@ cat > dashboard/build-data.json <<EOF
   "branch":"${GIT_BRANCH_NAME}",
   "commit":"${GIT_COMMIT_SHORT}",
   "author":"${GIT_AUTHOR}",
-  "message":"${currentBuild.description ?: 'Pipeline Build'}",
+  "message":"Build Successful",
   "timestamp":"${BUILD_TIMESTAMP}",
   "coverage":"${COVERAGE}",
   "dockerStatus":"running",
