@@ -1,13 +1,16 @@
 {
-  "buildNumber": "1",
-  "buildStatus": "SUCCESS",
-  "branch": "main",
-  "commit": "abc1234",
-  "author": "DevOps Engineer",
-  "message": "Initial project setup",
-  "timestamp": "2024-01-01 10:00:00",
-  "coverage": "96.4",
-  "dockerStatus": "running",
-  "healthStatus": "healthy",
-  "appPort": "5000"
+    "buildNumber": "74",
+    "buildStatus": "SUCCESS",
+    "branch": "main",
+    "commit": "7d97bcd",
+    "author": "Pruthviraj",
+    "message": "Pipeline Build Success",
+    "timestamp": "12-07-2026 07:38:32",
+    "coverage": "93.22",
+    "dockerStatus": "running",
+    "healthStatus": "healthy",
+    "appPort": "5000",
+    "testsPassed": "180",
+    "testsFailed": "0",
+    "testsSkipped": "0"
 }

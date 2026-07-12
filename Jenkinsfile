@@ -206,38 +206,27 @@ pipeline {
         // ================================================================
         // Stage 10: Deploy Docker Container (with retry)
         // ================================================================
-        stage('Deploy Docker Container') {
-            steps {
-                echo "=== Stage 10: Deploying Docker container ==="
-                retry(3) {
-                    sh '''
-                        set -e
-                        echo "Stopping any existing container..."
-                        docker stop "${CONTAINER_NAME}" 2>/dev/null || true
-                        docker rm   "${CONTAINER_NAME}" 2>/dev/null || true
+        // ================================================================
+// Stage 10: Verify Running Container
+// ================================================================
+stage('Deploy Docker Container') {
+    steps {
+        echo "=== Stage 10: Verifying Docker container ==="
+        sh '''
+            set -e
 
-                        echo "Starting new container..."
-                        docker run -d \
-                            --name "${CONTAINER_NAME}" \
-                            --network python-testing-pipeline_pipeline-net \
-                            -p "${HOST_PORT}:${APP_PORT}" \
-                            -e BUILD_NUMBER="${BUILD_NUMBER}" \
-                            -e APP_ENV=production \
-                            --restart unless-stopped \
-                            "${DOCKER_IMAGE}"
+            echo "Checking pipeline-app container..."
 
-                        sleep 3
-                        STATUS=$(docker inspect -f '{{.State.Running}}' "${CONTAINER_NAME}" 2>/dev/null || echo "false")
-                        if [ "$STATUS" != "true" ]; then
-                            echo "ERROR: Container failed to start"
-                            docker logs "${CONTAINER_NAME}" || true
-                            exit 1
-                        fi
-                        echo "Container is running: $(docker ps --filter name=${CONTAINER_NAME} --format '{{.Status}}')"
-                    '''
-                }
-            }
-        }
+            if docker ps --format "{{.Names}}" | grep -q "^pipeline-app$"; then
+                echo "pipeline-app is already running."
+                docker ps --filter "name=pipeline-app"
+            else
+                echo "ERROR: pipeline-app is not running."
+                exit 1
+            fi
+        '''
+    }
+}
 
        // ================================================================
 // Stage 11: Health Check (/health endpoint)
@@ -250,7 +239,7 @@ stage('Health Check') {
 
             ATTEMPTS=15
             SLEEP_SECONDS=3
-            HEALTH_URL="http://python-flask-app-container:5000/health"
+            HEALTH_URL="http://host.docker.internal:5000/health"
 
             for i in $(seq 1 $ATTEMPTS); do
 
@@ -307,7 +296,7 @@ print(round(float(root.attrib["line-rate"])*100,2))
 EOF
 )
 
-cat > /workspace/dashboard/build-data.json <<EOF
+cat > ${WORKSPACE}/dashboard/build-data.json <<EOF
 {
   "buildNumber":"${BUILD_NUMBER}",
   "buildStatus":"SUCCESS",
