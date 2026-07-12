@@ -1,16 +1,16 @@
 {
-    "buildNumber": "74",
+    "buildNumber": "93",
     "buildStatus": "SUCCESS",
     "branch": "main",
-    "commit": "7d97bcd",
+    "commit": "874e9c6",
     "author": "Pruthviraj",
     "message": "Pipeline Build Success",
-    "timestamp": "12-07-2026 07:38:32",
-    "coverage": "93.22",
+    "timestamp": "12-07-2026 18:27:38",
+    "coverage": "96.63",
     "dockerStatus": "running",
     "healthStatus": "healthy",
     "appPort": "5000",
-    "testsPassed": "180",
+    "testsPassed": "188",
     "testsFailed": "0",
     "testsSkipped": "0"
 }
