@@ -18,7 +18,7 @@
   --transition:  0.25s ease;
 }
 
-/* ── Reset ─────────────────────────────────────────────────── */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
 body {
@@ -29,7 +29,7 @@ body {
   line-height: 1.6;
 }
 
-/* ── Topbar ─────────────────────────────────────────────────── */
+
 .topbar {
   display: flex;
   align-items: center;
@@ -62,10 +62,8 @@ body {
   50% { opacity: 0.3; }
 }
 
-/* ── Layout ─────────────────────────────────────────────────── */
 .layout { padding: 20px; max-width: 1600px; margin: 0 auto; }
 
-/* ── Status Strip ───────────────────────────────────────────── */
 .status-strip {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
