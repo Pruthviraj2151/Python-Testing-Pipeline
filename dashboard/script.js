@@ -1,15 +1,13 @@
 'use strict';
 
-// ── Config ────────────────────────────────────────────────────
+
 const REFRESH_INTERVAL = 8000;
 const DATA_PATH = './build-data.json';
 
-// ── State ─────────────────────────────────────────────────────
 let testChart = null;
 let coverageChart = null;
 let buildHistory = [];
 
-// ── Helpers ───────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
 
@@ -22,7 +20,7 @@ function setStatusCard(cardId, value, state) {
   if (valEl) valEl.textContent = value;
 }
 
-// ── Clock ─────────────────────────────────────────────────────
+
 function updateClock() {
   const now = new Date();
   const h = String(now.getHours()).padStart(2, '0');
@@ -33,7 +31,6 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── Status Map ────────────────────────────────────────────────
 function statusState(raw) {
   if (!raw) return '';
   const s = raw.toLowerCase();
@@ -48,7 +45,6 @@ function healthState(raw) {
   return raw.toLowerCase() === 'healthy' ? 'success' : 'failure';
 }
 
-// ── Stage Simulation ──────────────────────────────────────────
 const STAGES = [
   'checkout','setup','install','lint','test','coverage',
   'sonar','quality','docker-build','deploy','healthcheck','archive','dashboard'
