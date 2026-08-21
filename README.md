@@ -4,7 +4,7 @@
 ![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+
 
 A production-grade CI/CD pipeline project built with Python, Jenkins, Docker, and SonarQube — featuring automated testing, quality gates, containerized deployment, and a live monitoring dashboard.
 
