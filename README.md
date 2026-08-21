@@ -219,6 +219,3 @@ git add . && git commit -m "fix: restore add operation" && git push
 
 ---
 
-## License
-
-MIT License — see `LICENSE` for details.
